@@ -1,3 +1,32 @@
+# Text generation web UI - Discord
+
+This is a copy of Text generation web UI repo, with a discord bot.
+It's the code that runs the BasedGPT_30B and BasedGPT_65B discord bots.
+
+## Discord BOT
+
+First you need to get the text-generation-webui working with 4-bit weights.
+Download the 4-bit model and follow instructions here to make them work:
+
+https://github.com/oobabooga/text-generation-webui/wiki/LLaMA-model#4-bit-mode
+
+After you have text-generation-webui working, you need to create a discord bot:
+
+ 1. Turn on “Developer mode” in your Discord account.
+ 2. Click on “Discord API”.
+ 3. In the Developer portal, click on “Applications”. ...
+ 4. Name the bot and then click “Create”.
+ 5. Go to the “Bot” menu and generate a token using “Add Bot”.
+ 6. Grant the bot permissions to post in your server
+ 7. Generate and copy your token. You need to insert this token in the 'discordtoken.txt' file
+
+After this, you run the bot in this way:
+
+    python bot.py --model llama-30b-hf
+
+This will launch the bot using a single RTX3090 and the 30B model. The code has support for multi-GPU (Required for 65B in common hardware) but it is not tested yet.
+
+
 # Text generation web UI
 
 A gradio web UI for running Large Language Models like GPT-J 6B, OPT, GALACTICA, LLaMA, and Pygmalion.
