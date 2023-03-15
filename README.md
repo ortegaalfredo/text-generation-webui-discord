@@ -24,8 +24,9 @@ After this, you run the bot in this way:
 
     python bot.py --model llama-30b-hf
 
-This will launch the bot using a single RTX3090 and the 30B model. The code has support for multi-GPU (Required for 65B in common hardware) but it is not tested yet.
+This will launch the bot using a single RTX3090 and the 30B model. The code has support for multi-GPU (Required for 65B in common hardware). For example, to lauch the bot using 2xRTX3090 the command is:
 
+    python bot.py --model llama-65b-hf --auto-devices --gpu-memory 15 20
 
 # Text generation web UI
 

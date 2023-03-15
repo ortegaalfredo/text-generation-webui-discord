@@ -3,6 +3,7 @@ import os
 import sys
 import time
 import json
+import threading
 from discord.ext import commands,tasks
 from modules.models import load_model
 from modules.text_generation import generate_reply
@@ -25,15 +26,40 @@ intents.message_content = True
 bot = commands.Bot(command_prefix="!", help_command=None,intents=intents)
 
 # The message queue
+class Msg:
+    message: discord.Message
+    reply: str
+
 msgqueue=[]
 
-@tasks.loop(seconds=2)
+def thread_generate():
+    while(True):
+        time.sleep(1)
+        if len(msgqueue)>0:
+            msg=msgqueue[0]
+            if (len(msg.reply)==0):
+                msg.reply=answerMessage(msg.message)
+
+
+@tasks.loop(seconds=1)
 async def thread_reply():
         global msgqueue
-        await bot.change_presence(activity=discord.Game(name='Queue: %d'% len(msgqueue)))
         if len(msgqueue)>0:
-            message=msgqueue.pop(0)
-            await answerMessage(message)
+            reply=msgqueue[0].reply
+            message=msgqueue[0].message
+            # write 'typing' in every channel
+            for m in msgqueue:
+                await m.message.channel.typing()
+            if (len(reply)>0):
+                print ('reply received')
+                msg=msgqueue.pop(0)
+                await bot.change_presence(activity=discord.Game(name='Queue: %d'% len(msgqueue)))
+                #send reply
+                if len(reply)>1500:
+                    for i in range(0,len(reply),1500):
+                        await message.channel.send(reply[i:i+1500], reference=message)
+                else:
+                    await message.channel.send(reply,reference=message)
 
 @bot.command()
 async def info(ctx):
@@ -54,16 +80,21 @@ async def on_message(message):
     if message.author == bot.user:
         return
     botid=("<@%d>" % bot.user.id)
+    print ('message received: %s %s' % (botid,message.content))
     if message.content.startswith(botid):
-        msgqueue.append(message)
+        print ('message accepted.')
+        newMsg = Msg()
+        newMsg.message=message
+        newMsg.reply=""
+        msgqueue.append(newMsg)
         
 
-async def answerMessage(message):
+def answerMessage(message):
         # Default config values
         temperature= 1.5
         top_p= 0.1
         top_k=40
-        max_len=256
+        max_len=192
         repetition_penalty=1.15
         # Process Message
         botid=("<@%d>" % bot.user.id)
@@ -87,22 +118,21 @@ async def answerMessage(message):
                         top_k=int(config['top_k'])
                     if not (config.get('max_len') is None):
                         max_len=int(config['max_len'])
-                        if (max_len>512): max_len=512
+                        if (max_len>400): max_len=400
                     if not (config.get('repetition_penalty') is None):
                         repetition_penalty=float(config['repetition_penalty'])
         except Exception as e:
                 msg = f"{message.author.mention} Error parsing the Json config: %s" % str(e)
                 log(msg)
-                await message.channel.send(msg)
+                return(msg)
                 return
 
         if (query.startswith('raw ')): # Raw prompt
                 query = query[4:]
         else: # Wrap prompt in question
-                query ='The answer for "%s" would be: ' % query
+                query =query #'The answer for "%s" would be: ' % query
         print(origquery)
-        async with message.channel.typing():
-            try:
+        try:
                 results = generate_reply(query, 
                                         max_new_tokens=max_len, 
                                         do_sample=False, 
@@ -119,20 +149,15 @@ async def answerMessage(message):
                                         penalty_alpha=0,
                                         length_penalty=1,
                                         early_stopping=False)
-            except: 
+        except:
                 msg='Generation error'
-                await message.channel.send(msg)
-                return
+                return(msg)
         log("---"+str(origquery))
         
         for result in results:
             msg = f"{message.author.mention} {result[0]}"
             log(msg)
-            if len(msg)>1500:
-                for i in range(0,len(msg),1500):
-                    await message.channel.send(msg[i:i+1500])
-            else:
-                await message.channel.send(msg)
+            return msg
             break
 
 def main():
@@ -141,6 +166,10 @@ def main():
     shared.args.no_stream=True
     shared.model_name = shared.args.model
     shared.model, shared.tokenizer = load_model(shared.args.model)
+    # Starting reply thread
+    print('Starting reply thread')
+    x = threading.Thread(target=thread_generate,args=())
+    x.start()
     # Connect bot
     token=open('discordtoken.txt').read().strip()
     bot.run(token)
